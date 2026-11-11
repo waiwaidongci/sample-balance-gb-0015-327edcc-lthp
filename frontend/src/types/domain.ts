@@ -4,6 +4,6 @@ export interface Unit{id:number;code:string;zone:string;age_band:string;mode:str
 export interface Target{dimension:string;category:string;population:number}
 export interface Diagnostic{dimension:string;category:string;sample_count:number;unweighted_share:number;target:number;target_share:number;weighted:number;weighted_share:number;residual:number}
 export interface RakingResult{converged:boolean;iterations:number;max_residual:number;target_total:number;weight_total:number;sample_count:number;effective_sample_size:number;design_effect:number;weight_min:number;weight_max:number;weight_cap:number;unweighted_mean:number;weighted_mean:number;diagnostics:Diagnostic[];trace:{iteration:number;max_residual:number}[];assignments:(Unit&{weight:number})[];checksum:string;method_note:string}
-export interface Run{id:number;name:string;batch_id:number;tolerance:number;max_iterations:number;cap_ratio:number;status:string;result:RakingResult|null;error:string|null;created_at:string;batch?:Batch}
+export interface Run{id:number;name:string;batch_id:number;tolerance:number;max_iterations:number;cap_ratio:number;status:string;result:RakingResult|null;error:string|null;created_at:string;has_snapshot:boolean;input?:{sample_count:number;target_count:number;checksum:string;captured_at:string};batch?:Batch}
 export interface Review{id:number;run_id:number;decision:string;note:string;reviewer_id:number;created_at:string}
 export interface Audit{id:number;actor:string;action:string;target:string;created_at:string}

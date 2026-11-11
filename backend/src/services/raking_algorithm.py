@@ -3,6 +3,13 @@ import math,hashlib,json
 from collections import defaultdict
 from statistics import mean
 DIMS=('age_band','mode','zone')
+UNIT_KEYS=('code','zone','age_band','mode','trip_minutes','base_weight')
+TARGET_KEYS=('dimension','category','population')
+def input_checksum(units,targets,tolerance,max_iterations,cap_ratio):
+    """创建时与计算时共用的输入指纹：相同样本/目标/参数必得相同SHA256。"""
+    units=sorted(units,key=lambda u:u['code']);targets=sorted(targets,key=lambda t:(str(t['dimension']),t['category']))
+    payload={'units':[{k:u[k] for k in UNIT_KEYS} for u in units],'targets':[{k:t[k] for k in TARGET_KEYS} for t in targets],'tolerance':tolerance,'max_iterations':max_iterations,'cap_ratio':cap_ratio}
+    return hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
 def validate_targets(units,targets):
     if not units: raise ValueError('样本为空，请先导入样本')
     if len(units)>5000: raise ValueError('演示数据集最多5000条')
@@ -60,6 +67,5 @@ def calibrate(units,targets,tolerance=.001,max_iterations=200,cap_ratio=8):
             indexes=[i for i,u in enumerate(units) if u[dim]==cat]
             actual=sum(weights[i] for i in indexes)
             diagnostics.append({'dimension':dim,'category':cat,'sample_count':len(indexes),'unweighted_share':len(indexes)/len(units),'target':target,'target_share':target/total,'weighted':actual,'weighted_share':actual/sum_w,'residual':actual-target})
-    payload={'units':[{k:u[k] for k in ['code','zone','age_band','mode','trip_minutes','base_weight']} for u in units],'targets':targets,'tolerance':tolerance,'max_iterations':max_iterations,'cap_ratio':cap_ratio}
-    checksum=hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+    checksum=input_checksum(units,targets,tolerance,max_iterations,cap_ratio)
     return {'converged':converged,'iterations':iteration,'max_residual':residual,'target_total':total,'weight_total':sum_w,'sample_count':len(units),'effective_sample_size':ess,'design_effect':deff,'weight_min':min(weights),'weight_max':max(weights),'weight_cap':cap,'unweighted_mean':mean(u['trip_minutes'] for u in units),'weighted_mean':sum(u['trip_minutes']*w for u,w in zip(units,weights))/sum_w,'diagnostics':diagnostics,'trace':trace,'assignments':[dict(u,weight=w) for u,w in zip(units,weights)],'checksum':checksum,'method_note':'逐维IPF后截断权重，可能无法收敛；残差为类别绝对偏差除目标总量。Kish有效样本仅反映权重离散，不包含聚类/分层设计或未观测偏差。加权均值为描述性估计。'}

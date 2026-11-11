@@ -8,9 +8,15 @@ from src import models
 from src.routes import auth,batches,runs,reviews,audits
 from src.middlewares.request_guard import RequestGuard
 from src.middlewares.error_handler import ErrorHandler
+def ensure_schema():
+    Base.metadata.create_all(engine)
+    if engine.dialect.name=='mysql':
+        with engine.begin() as connection:
+            columns={row[0] for row in connection.execute(text("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='weight_runs'"))}
+            if 'input_snapshot' not in columns:connection.execute(text('ALTER TABLE weight_runs ADD COLUMN input_snapshot JSON NULL'))
 @asynccontextmanager
 async def lifespan(app):
-    Base.metadata.create_all(engine)
+    ensure_schema()
     if os.getenv('SEED_DEMO','true').lower()=='true':
         try:
             from scripts.seed_demo import seed
