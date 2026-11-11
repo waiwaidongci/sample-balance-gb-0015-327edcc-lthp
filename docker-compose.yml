@@ -1,0 +1,75 @@
+name: sample-balance
+services:
+  db:
+    image: mysql:8.0
+    container_name: ${COMPOSE_PROJECT_NAME:-sample-balance}-db
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-sample_balance}
+      MYSQL_USER: ${MYSQL_USER:-balance}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-balance_demo_2026}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-balance_root_demo_2026}
+    ports: ["${DB_PORT:-17719}:3306"]
+    volumes: [db_data:/var/lib/mysql]
+    healthcheck:
+      test: [CMD-SHELL, 'mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-sample-balance}-redis
+    volumes: [redis_data:/data]
+    command: [redis-server, --appendonly, 'yes']
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  backend:
+    build: ./backend
+    container_name: ${COMPOSE_PROJECT_NAME:-sample-balance}-backend
+    environment: &appenv
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-balance}:${MYSQL_PASSWORD:-balance_demo_2026}@db:3306/${MYSQL_DATABASE:-sample_balance}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-balance-local-demo-change-before-sharing}
+      SEED_DEMO: ${SEED_DEMO:-true}
+    ports: ["${BACKEND_PORT:-19219}:8000"]
+    volumes: [artifacts:/artifacts]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  worker:
+    build: ./backend
+    container_name: ${COMPOSE_PROJECT_NAME:-sample-balance}-worker
+    command: [python, -m, src.worker]
+    environment: *appenv
+    volumes: [artifacts:/artifacts]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import os,time; assert time.time()-os.path.getmtime('/tmp/heartbeat')<25"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  frontend:
+    build: ./frontend
+    container_name: ${COMPOSE_PROJECT_NAME:-sample-balance}-frontend
+    ports: ["${FRONTEND_PORT:-18219}:80"]
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1/]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+volumes:
+  db_data:
+  redis_data:
+  artifacts:
